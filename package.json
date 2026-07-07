@@ -1,0 +1,40 @@
+{
+  "name": "fithealth",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "pages:deploy": "npm run build && wrangler pages deploy dist",
+    "postinstall": "node scripts/sync-emulatorjs.mjs",
+    "cap:sync": "npm run build && cap sync",
+    "android": "npm run build && cap open android",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.6.7",
+    "@capacitor/core": "^7.6.7",
+    "@emulatorjs/emulatorjs": "^4.2.3",
+    "@tauri-apps/api": "^2.11.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.7",
+    "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "eslint": "^10.6.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.7.0",
+    "vite": "^8.1.1",
+    "wrangler": "^3.114.17"
+  }
+}

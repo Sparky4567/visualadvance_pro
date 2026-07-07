@@ -1,0 +1,19 @@
+{
+  "name": "AdvanceBoy Game Boy Advance Emulator",
+  "short_name": "AdvanceBoy",
+  "description": "A local Game Boy Advance emulator with IndexedDB saves, SQLite export, touch controls, and game controller support.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef1f3",
+  "theme_color": "#2f5f46",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
