@@ -3,8 +3,19 @@ import './App.css'
 
 const DISCLAIMER_KEY = 'advanceboy-disclaimer-acknowledged'
 const EMULATOR_DATA_PATH = '/emulatorjs/data/'
-const LOADER_SRC = `${EMULATOR_DATA_PATH}loader.js`
+const EMULATOR_RUNTIME_SCRIPTS = [
+  'emulator.js',
+  'nipplejs.js',
+  'shaders.js',
+  'storage.js',
+  'gamepad.js',
+  'GameManager.js',
+  'socket.io.min.js',
+  'compression.js',
+]
+const EMULATOR_RUNTIME_STYLE = `${EMULATOR_DATA_PATH}emulator.css`
 const BIOS_PATH = normalizeBaseUrl(import.meta.env.VITE_BIOS_BASE_URL || '/bios/')
+let emulatorRuntimePromise = null
 
 const systems = [
   { label: 'Game Boy Advance', core: 'gba', extensions: ['gba'] },
@@ -108,20 +119,142 @@ function formatBytes(bytes) {
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve()
+      return
+    }
+
     const script = document.createElement('script')
 
     script.src = src
-    script.async = true
+    script.async = false
     script.onload = resolve
     script.onerror = () => reject(new Error('Could not load EmulatorJS runtime'))
     document.body.appendChild(script)
   })
 }
 
-function removeEmulatorScript() {
-  for (const script of document.querySelectorAll(`script[src^="${LOADER_SRC}"]`)) {
-    script.remove()
+function loadStyle(src) {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`link[href="${src}"]`)) {
+      resolve()
+      return
+    }
+
+    const stylesheet = document.createElement('link')
+
+    stylesheet.rel = 'stylesheet'
+    stylesheet.href = src
+    stylesheet.onload = resolve
+    stylesheet.onerror = () => reject(new Error('Could not load EmulatorJS styles'))
+    document.head.appendChild(stylesheet)
+  })
+}
+
+function buildEmulatorConfig() {
+  return {
+    gameUrl: window.EJS_gameUrl,
+    dataPath: EMULATOR_DATA_PATH,
+    system: window.EJS_core,
+    biosUrl: window.EJS_biosUrl,
+    gameName: window.EJS_gameName,
+    volume: window.EJS_volume,
+    startOnLoad: window.EJS_startOnLoaded,
+    threads: window.EJS_threads,
+    disableDatabases: window.EJS_disableDatabases,
   }
+}
+
+function installEmulatorDestroy() {
+  if (!window.EmulatorJS || window.EmulatorJS.prototype.__visualAdvanceDestroyInstalled) {
+    return
+  }
+
+  const prototype = window.EmulatorJS.prototype
+  const originalAddEventListener = prototype.addEventListener
+
+  prototype.addEventListener = function addTrackedEventListener(element, listener, callback) {
+    const listeners = originalAddEventListener.call(this, element, listener, callback)
+
+    this.__visualAdvanceListeners = [
+      ...(this.__visualAdvanceListeners || []),
+      ...listeners,
+    ]
+
+    return listeners
+  }
+
+  prototype.destroy = function destroyEmulator() {
+    if (this.__visualAdvanceDestroyed) {
+      return
+    }
+
+    this.__visualAdvanceDestroyed = true
+
+    try {
+      this.menu?.close?.()
+    } catch {
+      // Best-effort cleanup for a runtime that may be only partially initialized.
+    }
+
+    try {
+      if (document.fullscreenElement === this.elements?.parent) {
+        document.exitFullscreen?.()
+      }
+    } catch {
+      // Fullscreen exit may be blocked if the browser has already changed state.
+    }
+
+    try {
+      this.callEvent?.('exit')
+    } catch {
+      // Some cores may already have aborted.
+    }
+
+    clearTimeout(this.resetTimeout)
+
+    try {
+      this.Module?.pauseMainLoop?.()
+    } catch {
+      // Not every Emscripten runtime exposes pauseMainLoop.
+    }
+
+    try {
+      this.Module?.abort?.()
+    } catch {
+      // abort can throw after a previous exit path has run.
+    }
+
+    for (const listener of this.__visualAdvanceListeners || []) {
+      try {
+        listener.elem.removeEventListener(listener.listener, listener.cb)
+      } catch {
+        // Detached nodes and aborted runtimes should not prevent teardown.
+      }
+    }
+
+    this.__visualAdvanceListeners = []
+    this.started = false
+    this.paused = true
+  }
+
+  prototype.__visualAdvanceDestroyInstalled = true
+}
+
+async function ensureEmulatorRuntime() {
+  if (!emulatorRuntimePromise) {
+    emulatorRuntimePromise = (async () => {
+      await loadStyle(EMULATOR_RUNTIME_STYLE)
+
+      for (const script of EMULATOR_RUNTIME_SCRIPTS) {
+        await loadScript(`${EMULATOR_DATA_PATH}src/${script}`)
+      }
+
+      installEmulatorDestroy()
+    })()
+  }
+
+  await emulatorRuntimePromise
 }
 
 function App() {
@@ -172,13 +305,21 @@ function App() {
   }
 
   function resetRuntimeContainer() {
-    window.EJS_emulator?.gameManager?.saveSaveFiles?.()
-    window.EJS_emulator?.destroy?.()
+    const emulator = window.EJS_emulator
+
+    try {
+      emulator?.gameManager?.saveSaveFiles?.()
+    } catch {
+      // Save data is best-effort during forced teardown.
+    }
+
+    emulator?.destroy?.()
     window.EJS_emulator = null
-    removeEmulatorScript()
 
     if (playerRef.current) {
       playerRef.current.innerHTML = ''
+      playerRef.current.classList.remove('ejs_parent', 'ejs_small_screen', 'ejs_big_screen')
+      playerRef.current.removeAttribute('tabindex')
     }
   }
 
@@ -228,9 +369,16 @@ function App() {
     setIsLoaded(false)
 
     try {
-      await loadScript(`${LOADER_SRC}?v=${loadId}`)
+      await ensureEmulatorRuntime()
 
       if (loadIdRef.current !== loadId) {
+        return
+      }
+
+      window.EJS_emulator = new window.EmulatorJS(window.EJS_player, buildEmulatorConfig())
+
+      if (loadIdRef.current !== loadId) {
+        window.EJS_emulator?.destroy?.()
         return
       }
 

@@ -183,7 +183,9 @@ button.secondary {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 620px;
+  box-sizing: border-box;
+  height: clamp(360px, 58svh, 620px);
+  min-height: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   background:
@@ -194,20 +196,20 @@ button.secondary {
 }
 
 .screen-bezel-maximized {
-  min-height: calc(100svh - 190px);
+  height: calc(100svh - 190px);
   padding: 18px;
 }
 
 .screen-bezel:fullscreen {
   width: 100vw;
-  min-height: 100vh;
+  height: 100vh;
   border: 0;
   border-radius: 0;
   padding: 24px;
 }
 
 .emulator-player {
-  min-height: 620px;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -224,9 +226,16 @@ button.secondary {
   font-weight: 800;
 }
 
-.emulator-player > * {
-  width: 100%;
-  min-height: 560px;
+.emulator-player .ejs_game,
+.emulator-player .ejs_canvas_parent,
+.emulator-player .ejs_canvas {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0;
+}
+
+.emulator-player .ejs_canvas {
+  display: block;
 }
 
 .screen-bezel:fullscreen .ejs_parent,
@@ -361,12 +370,12 @@ button.secondary {
   }
 
   .screen-bezel {
-    min-height: auto;
+    height: clamp(260px, 56svh, 460px);
     padding: 18px;
   }
 
   .screen-bezel-maximized {
-    min-height: calc(100svh - 170px);
+    height: calc(100svh - 170px);
   }
 }
 
